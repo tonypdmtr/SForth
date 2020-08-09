@@ -1,0 +1,44 @@
+THE CIRCUIT
+
+My CPU board follows the circuit described in the HC11 REFERENCE BOOK (available
+from Motorola).  Basically it's an HC11 wired in single chip mode. I added a
+MAXIM MAX232 to enable RS232 communications with a PC, and a MICROCHIP 25c010
+16K serial EEPROM for program storage.
+
+I use a transistor-resistor network to act as a brownout circuit for RESET.
+This is the circuit on Motorola's EVB board.  However, if I had it to do again,
+I would use a reset chip such as Motorola's MC34064 or Dallas' econo reset
+DS1233.  What is important here is that the circuit has a way to reset when
+voltage is too low, and a push button reset switch.
+
+To power the circuit, I used 4 AA alkaline batteries, unregulated.  Later. I
+added an 78LC05 voltage regulator so I could use 9v batteries and solar power.
+
+There are other chips that will perform the voltage translation that the MAX232
+does.  Feel free to use them.  Also, there are other sizes and makes of SPI
+format serial EEPROMs.  The software should work with those.  I read recently
+that there are 4M byte versions of SPI format serial EEPROMs.  Imagine the
+possibilities.
+
+Finally, my original version of SFORTH used a NATIONAL 93C86 2K SEEPROM, which
+is in MICROWIRE format.  MICROWIRE is very similar to SPI, in fact I used the
+SPI port with a few small software changes.  The code to drive the SEEPROM is
+not that much bigger.  I switched to 25C04 because they were cheaper, and easier
+to interface.  If you have a good source for NATIONAL MICROWIRE type memories,
+you could make this system work with them.  For that matter, I don't see why it
+wouldn't work with I2C type SEEPROMs.  The code might be too big, but if you use
+enough imagination, it might just work.
+
+CONSTRUCTION
+
+How you build the circuit depends on what you buy.  The HC11 comes in a 52 pin
+PLCC package and a 48 pin DIP package.  The 48 pin package is easy to wire wrap.
+The 52 pin package is more difficult.  I found a good deal on wire wrap SIP
+sockets.  With these I could fashion a wire wrap socket for the 52 pin chip.
+It is a tight fit and difficult to keep track of which pin is which, but, it is
+easier than the point-to-point solder job I did on the original model.  Of
+course, you could buy a PC board for the HC11 through various sources (see
+SFORTH.DOC).
+
+A circuit diagram is available in the file CIRCUIT.BMP.  It will work with PAINT
+in your WINDOWS APPLICATIONS program.

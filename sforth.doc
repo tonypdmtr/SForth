@@ -1,0 +1,524 @@
+SFORTH INTERPRETER
+==================
+
+INTRODUCTION
+============
+
+This is a brief description of SFORTH, a FORTH compiler for the HC11
+microcontroller.  SFORTH is designed to be compiled on your personal computer,
+then downloaded to a serial EEPROM connected to the HC11.  In the HC11's 512
+bytes EEPROM, an interpreter executes your code.
+
+In writing SFORTH, I've tried to stick to the FORTH standard as much as
+possible, so if you're familiar with FORTH, you'll understand SFORTH.  In this
+document, I will describe a working circuit, the essential elements of the
+language, the compiler, writing and downloading a program.
+
+HARDWARE REQUIREMENTS
+=====================
+
+SFORTH runs on Motorola's 68hc11a1 (256 bytes RAM, 512 bytes EEPROM)
+microcontroller.  The circuit must be set up to run in single chip, special
+bootstrap mode (MODA and MODB pins are grounded).  A SPI compatible serial
+EEPROM should be connected to the SPI port, pins PD2, PD3, PD4 and PD5.  For
+this example a 25C016 2K SEEPROM (available from DIGIKEY) was used, but other
+sizes should work as long as they are SPI compatible.  Also connected to the SCI
+port pins PD0 and PD1 is a MAX232 chip for RS232 communications.  The software
+expects either a 4MHz or 8MHz crystal.  It won't work otherwise.
+
+There are a few boards available that can be easily modified to fit this
+configuration.  LDG's board and the ADAPT-11 would work.  Mondo Electronics
+also sells a PC board that would work (you provide the parts). If you want to
+build your own, I've included a circuit diagram in this package that could be
+called up from Windows.  See CIRCUIT.BMP and CIRCUIT.DOC.
+
+The compiler, SFORTH.COM and loader, LOADER.COM should run on any IBM compatible
+machine.  They're pretty small and won't need more than 512k memory.  The HC11
+communicates via the RS232 port.  The software only uses TX, RX and ground.
+
+INSTALLATION
+============
+
+To run SFORTH on the HC11, the interpreter must be in it's EEPROM.  To get it
+there, you need a program that will download code to the EEPROM.  PCBUG is such
+a program.  PCBUG is a monitor that requires no special hardware or a resident
+program in your system.  It uses the special bootload program that Motorola
+placed in every HC11 to download a small program into the HC11's RAM. PCBUG will
+load the interpreter into EEPROM using the LOADS command.  PCBUG is available
+free from the Motorola FREEWARE BBS.
+
+Alternately your CPU might have the BUFALO monitor in it's ROM.  I believe that
+versions above 3.0 will program the EEPROM.  You will need to be able to set
+your CPU into single chip mode, MODA to ground, MODB to VCC.
+
+To install the compiler and loader software on your PC, just copy the files to
+the same directory.  The loader program needs to have LOADER.S19 in the same
+directory in order to work properly.
+
+RUNNING THE COMPILER
+====================
+
+SFORTH programs are written on any word processor.  Just
+make sure the text is saved in DOS or ASCII format (that is no
+control characters to confuse the compiler).  Also, make sure
+that your program has the extension .FTH or the compiler won't
+recognize it.  Once written, the program is compiled by typing:
+
+          SFORTH <NAME>
+
+Leave out the extension.  If you forget to include the file, SFORTH will prompt
+you for it.
+
+If the compilation is successful, the compiler will print "DONE." and a file
+<NAME>.S19 will be created with your code in Motorola hex.  If there is an
+error, an error message will be printed and no file will be created.
+
+There are only three error messages.  "Undefined word:<WORD>": you used a word
+that has not been defined previously.  "Redefined word:<NAME>": you have
+redefined an already defined word.  The compiler will ask if you want to
+continue and quit if you don't. Finally, "FILE ERROR": the compiler couldn't
+find the file you wanted to compile.
+
+To use the loader, type:
+
+                    LOADER <NAME>
+
+Again leave out the extension.  As in SFORTH, you will be prompted for the file
+if you leave it out of the command line.
+
+You will be given the choice of DOWNLOAD, MONITOR or QUIT.  MONITOR listens in
+on the serial line from the HC11 and outputs it in decimal form on screen.  If
+you want to change the baud rate select BAUD and follow the prompts.
+
+If you select DOWNLOAD, you will be asked for the crystal frequency.  Next you
+will be told to reset the HC11.  The loader downloads LOADER.S19 into the HC11's
+RAM then your compiled program into the SEEPROM.  As it downloads the SFORTH
+program, the code is echoed to the screen in decimal form.  When it's done,
+Loader monitors the serial line and echoes it to the screen.
+
+PROGRAMMING IN SFORTH
+=====================
+
+While writing SFORTH, I tried to comply with standard FORTH as much as possible.
+There is a major difference.  In standard FORTH, you can write your program and
+debug it as you go along.  FORTH is an interactive interpreter, you can run your
+program as soon as you write it.  SFORTH, however is compiled, you have to run
+it through the compiler before you can run it on the HC11. Other than that,
+there are only a few differences between FORTH and SFORTH.  If you can write a
+program in FORTH, you can write one in SFORTH.
+
+As in FORTH, there are two stacks, one for data and one for return addresses.
+They reside in the HC11's zero page RAM.
+
+In SFORTH commands and subroutines are called WORDS.  You write programs using
+the supplied words (see the GLOSSARY) or making up your own.  To make your own
+word, start with ":" a space and a name.  all words must be separated by white
+space, that is spaces or returns or tabs.  SFORTH doesn't care if you capitalize
+or not.
+
+After you've named your word, you type in a series of previously defined words
+to perform some task.  You end your definition by typing ";".
+
+The general form is like this:
+
+          : <NAME> <words...> ; .
+
+example:
+          : SEND begin SPSR c@ 80 and until SPDR c! ;
+          ( this word sends a character out of the SCI port )
+
+There are three types of words in SFORTH: compiler words, interpreter words and
+macros.  Compiler words are instructions for the compiler.  For instance, "BIN"
+tells the compiler that all numbers after BIN are in binary form.  These words
+tell the compiler to allocate space, give names to words and interact with the
+PC.  Most compiler words must be executed outside of word definitions.
+
+Interpreter words are words that the interpreter recognizes.  For example "SWAP"
+exchanges the top two items on the stack.  These words tell the HC11 to do some
+task.  Interpreter words must be within word definitions.
+
+MACROS are combinations of interpreter words, some of which are not usually
+available to the user.  They represent control structures like IF/THEN or
+FOR/NEXT.  Like interpreter words, then must be within word definitions.
+
+PERIPHERALS
+===========
+
+The HC11 has several peripheral devices that eliminate the need to write special
+software.  There is an A/D converter, SCI and SPI ports, and various timers.
+All of these are accessible as memory locations between $1000 and $103f.  The
+words "!", "@", "C!", and "C@" are used to read and write to these locations.
+
+EXAMPLE:
+
+HEX ( all numbers in hexadecimal form )
+
+102e CONSTANT SCSR ( define SCI Status Register )
+
+102f CONSTANT SCDR ( define SCI Data Register )
+
+: SEND ( start a WORD called SEND )
+     BEGIN ( start a BEGIN/UNTIL structure )
+          SCSR C@ ( fetch SCI port status )
+          80 AND ( mask off TDRE )
+     UNTIL ( if full do again )
+     SCDR C! ( transmit top of stack )
+; ( end SEND )
+: MAIN ( this is the last definition and will be executed upon
+        startup )
+     BEGIN
+          41 ( put "A" on stack )
+          SEND ( send it out )
+          0 ( put 0 on stack )
+     UNTIL ( will always loop back to BEGIN )
+;
+
+This example transmits an "A" through the SCI port.  First, we define SCSR and
+SCDR as constants so that their value is put on the stack when their name is
+encountered.  This makes the program easier to read and debug.
+
+The word "SEND" first polls the SCSR register to see if there is a character in
+the transmit register (SCDR).  To do that it reads the register and then masks
+off all the bits except bit 7 (80 in hex).  If it is set the transmit register
+is empty and a new character can be sent out, otherwise it is still sending a
+character and the result of "AND" will be 0.
+
+"UNTIL" tests to see if the top of the stack is 0.  If it is 0, it branches back
+to "BEGIN" which of course repeats the polling process.  If the top of the stack
+is not 0, that is if bit 7 was 1, the code after "UNTIL" will be executed.
+
+If SPDR is empty, the top of the stack is sent out of the SCI port.  Since the
+SCDR register is one byte wide, use C! (store one byte - the least significant).
+
+"MAIN" puts the ASCII number for "A" (hex 41) on the stack and then calls
+"SEND".  Then it puts 0 on the stack so that "UNTIL" always branches back to
+"BEGIN".  If you didn't do this, the HC11 will execute a "STOP" and halt the
+processor.
+
+The compiler is designed to start execution at the last defined word.  No
+special word is needed.  After the word is executed the processor executes a
+SLEEP command stopping the timers and halting execution until reset XIRQ or IRQ.
+
+POLLING VS. INTERRUPTS
+======================
+
+As the preceding example illustrates, there are control registers associated
+with the peripheral registers.  These registers give information about the
+status, or modes of various ports, and enable certain features.  Also, they tell
+when a process, say the main timer overflow, has occurred.
+
+Often, we want to know when an event has occurred so that we can do something
+else.  For instance, the Transmit Register is empty, so now we can send another
+character.  There are two ways of getting and using this information: polling
+and interrupts.
+
+Polling continuously reads the register until a certain condition is met and
+then continues on.  "SEND" in the previous example does this.  The problem is
+that polling wastes the CPU's time.  You might want to do other things while
+waiting for an event to occur.  Also timing might be important.  Each
+instruction in SFORTH takes between 280 and 900 microseconds to perform (at 4
+MHz).  In that time a critical event might have occurred and been missed.
+
+Using interrupts is a quicker way of responding to events.  When an event has
+occurred, immediately after the current HC11 instruction cycle, the HC11 stacks
+all of the registers and then jumps to the routine that deals with that event.
+When it's finished, the registers are unstacked and execution continues where it
+left off.
+
+To use interrupts in SFORTH, first you have to write a program to service the
+interrupt.  It is possible to write and execute machine language programs with
+SFORTH.  See the section on MACHINE LANGUAGE PROGRAMS.
+
+Next you have to tell the HC11 where the program is.  When the HC11 is in
+special bootstrap mode, the interrupt vector table is located from $C4 to $FF in
+zero page RAM.  Each vector takes up three bytes, a "jmp" opcode ($7E) and the
+address of the routine.  You have to set up the vector or the HC11 won't know
+where to go.
+
+In order for the interrupt to happen, it has to be enabled.  There are two flags
+associated with interrupts.  Each maskable interrupt (all interrupts except
+RESET, XIRQ and IRQ) has an interrupt enable flag.  When it is set, the
+interrupt is enabled.  There is also 1a global interrupt flag in the Condition
+Code Register (CCR).  This bit must be set in order for maskable interrupts to
+occur.  Use "E_INT" to enable interrupts and "D_INT" to disable them.
+
+Writing interrupt service routines can be tricky.  Be sure to get Motorola's
+HC11 REFERENCE book.  It's free from Motorola's literature department.
+
+In general, I've found that polling works fine if time is not an issue.  For
+jobs requiring the timer features of the HC11, you might consider using an
+interrupt.  For an example of using interrupts, see TIMEOUT.FTH.
+
+MACHINE LANGUAGE PROGRAMS
+=========================
+
+One of the nice features of the HC11 is that you can run code from zero page
+memory.  This makes it possible to write machine language programs in SFORTH.
+Essentially, you will poke the code into the RAM and then use "EXEC" to execute
+it.
+
+First, to ensure that the code is protected, declare an array big enough to hold
+your code.  Use the "DATA" word to directly load the code into SEEPROM.  Then
+move the code from SEEPROM to RAM (see the word "EMOVE" in TIMEOUT.FTH).  To
+run your code, use the array's name and then "EXEC".
+
+If you want to store data in variable space, it would be helpful to know a bit
+about how the compiler reserves space for variables.  When VARIABLE, CVARIABLE
+or ARRAY are invoked, the compiler puts the name into the dictionary and
+reserves the required space in RAM.  Space is reserved in the order the space
+is declared, starting at address 80 (50 hex).  You can calculate the address of
+the variable by looking at the order that the space was declared.  For example:
+
+CVARIABLE DAT1
+6 ARRAY ARR1
+VARIABLE DAT2
+( the address of DAT1 is $50, ARR1 is $51, and DAT2 is $57 )
+
+If you need to store or fetch data in your machine program, you need to write
+the absolute address in your program, the compiler won't accept a symbolic name
+for it.  Needless to say, a machine language program requires some careful
+planning and attention to detail.  See TIMEOUT.FTH and SERINT.FTH for examples
+of machine language and interrupt routines.
+
+VERY IMPORTANT: Your code must end in "jmp PUSHD" ($7E $B775- push ACCD),
+"jmp PUSHX" ($7E $B776 - push ACCX) or "jmp NEXT ($7E $B777 - the inner
+interpreter loop).  If it is an interrupt service routine, it must end in "rti"
+($3B).  Also, before you return, you need to reset the interrupt flag for that
+particular interrupt.  See the reference manual for details.
+
+
+MEMORY MAP
+==========
+
+RAM
+00      IPH-INSTRUCTION POINTER HIGH BYTE
+01      IPL-INSTRUCTION POINTER LOW BYTE
+02      CI-CURRENT INSTRUCTION
+03      EEDAT-EEPROM DATA-DATA FETCHED FROM OR TO EEPROM
+04      RP-RETURN STACK POINTER
+05      RETURN STACK-GROWS UP
+           -------------
+4F      DATA STACK-GROWS DOWN
+50      VARIABLE SPACE-GROWS UP - PUT MACHINE LANGUAGE ROUTINES HERE
+        ---------------------
+C4      INTERRUPT VECTORS - SEE HC11 REFERENCE MANUAL
+FF      END OF RAM
+
+B600-B7FF       FORTH INTERPRETER
+
+GLOSSARY
+========
+
+COMPILER WORDS
+
+The Compiler has one stack to store constants and compile macros.  If you type a
+number or a constant it will be pushed onto the compiler's stack.
+
+:    - ( -- <NAME> ) Begins a compilation of a WORD.  When <NAME>
+                    is called, the subroutine is performed.
+                    Interpreter words will be compiled until ";"
+                    is reached.
+
++   - ( a b -- a+b ) Adds the top two numbers on the compiler's
+                     stack
+
+-   - ( a b -- a-b ) Subtracts the top two numbers on the
+                     compiler's stack.
+
+*   - ( a b -- a*b ) Multiply the top two numbers on the
+                     compiler's stack.
+
+/   - ( a b -- q ) Divides the top two numbers on the compiler's
+                   stack. Leaves the Quotient.
+
+MOD - ( a b -- r ) Divides the top two numbers on the compiler's
+                   stack.  Leaves the remainder.
+
+(   - begins a comment.  Ignores text to ")".
+
+ARRAY - ( n -- <NAME> ) reserves n bytes in RAM.  When <NAME> is
+                        called, the address of the first byte of
+                      the array is put on the stack.
+
+BIN - All numbers following BIN are considered binary.
+
+CONSTANT - ( n -- <NAME> ) When <NAME> is called, n is put on the
+                           stack.
+
+CVARIABLE - ( -- <NAME> ) Reserves one byte of RAM.  When
+                          called, the  address of <NAME> is put
+                          on the stack.
+
+DATA - ( n -- <NAME> <a list of n numbers> ) Compiles n numbers
+       into SEEPROM.  When <NAME> is called, the address of the
+       first number is put on the stack.
+
+DEC - All numbers following DEC are decimal.
+
+HEX - all numbers following HEX are Hexadecimal.
+
+
+LOAD - LOAD <NAME.EXT> Opens a program and compiles it to the
+       end of the file.  Use it like INCLUDE in "C" or BASIC.
+
+VARIABLE - ( -- <NAME> ) Reserves space for a variable.  When
+                        <NAME> is called, the address of <NAME>
+                        is put on the stack.
+
+
+INTERPRETER WORDS
+
+The Interpreter has two stacks: the Return stack and the Parameter stack
+(generally referred to as the "stack").  Numbers and names (i.e. constants) are
+pushed on the parameter stack.
+
++ - ( a b -- a+b ) The sum of the top two numbers on the stack.
+
+= - ( a b -- T|F ) If a=b then TRUE (-1) is put on stack, else
+                   FALSE (0) is put on the stack.
+
+> - ( a b -- T|F ) If a>b then TRUE else FALSE.
+
+< - ( a b -- T|F ) If a<b then TRUE else FALSE.
+
+1- - ( a -- a-1 ) Decreases the top of the stack by 1.
+
+1+ - ( a -- a+1 ) Increases the top of the stack.
+
+@ - ( addr -- data ) Loads data word at addr on stack.
+
+! - ( data addr -- ) Stores data word in addr.
+
+- - ( a b -- a-b ) Subtracts the top of the stack from the next
+                   on the stack.
+
+/ - ( a b -- q r ) Divides a by b and leaves the remainder and
+                   quotient.
+
+* - ( a b -- a*b ) Multiplies the lsb of a and the lsb of b.  Leaves an
+                   8 bit result.
+
+2* - ( a -- 2a ) Doubles the top of the stack.
+
++! - ( a addr -- ) Adds a to data in addr.
+
+( - Begins a comment until ).
+
+; - Ends the compilation of a WORD.
+
+AND - ( a b -- a&b ) logical AND of top two numbers on stack
+
+BIT_CLR - ( msk addr -- ) Clears bits indicated by msk in address
+                          addr.
+
+BIT_SET - ( msk addr -- ) Sets bits indicated by msk in addr.
+
+C@ - ( addr -- byte ) Loads the byte at addr on the stack.
+
+C! - ( b addr -- ) Stores a byte at addr.
+
+D_INT - Disables interrupts.
+
+DROP - ( a -- ) Drops the top of the stack.
+
+DUP - ( a -- a ) Duplicates the top of the stack.
+
+EXIT - Exit from a subroutine.
+
+EE@ - ( addr -- data ) Loads the byte at addr in SEEPROM on the
+                       stack.
+
+EE! - ( data addr -- ) Stores data in addr in SEEPROM.
+
+E_INT - Enables interrupts.
+
+EXEC - ( addr -- ) Executes subroutine whose address is on top of
+                   the stack.
+
+HALT - ( -- ) Stops the timer and puts CPU into sleep mode until
+              RESET, XIRQ or IRQ.
+
+NOT - ( a -- ^a ) One's complement of the top of the stack.
+
+NEGATE - ( a -- -a ) Two's complement of the top of the stack.
+
+OR - ( a b -- a|b ) Logical OR of a and b.
+
+OVER - ( a b -- a b a ) copies second on the stack to the top of
+                        the stack.
+
+R@ - ( -- a ) Copies the top of the return stack and pushes it on
+              the stack.
+
+>R - Pushes the top of the Parameter stack on the return stack.
+
+R> - Pushes the top of the return stack on the parameter stack.
+
+SWAP - ( a b -- b a ) The top of the stack switched with the next
+                      on the stack.
+
+SP@ - ( -- SP ) Pushes current stack pointer on stack.
+
+XOR - ( a b -- a^b ) Logical XOR of a and b.
+
+
+
+MACROS
+======
+
+These words are actually several interpreter words that control program flow.
+
+IF/ELSE/THEN - IF < words > THEN
+                      or
+               IF < words > ELSE < words > THEN
+
+               If the top of the stack <> 0 then the words
+               between IF and THEN, or IF and ELSE are executed.
+               Otherwise the words between ELSE and THEN are
+               executed.
+
+BEGIN/UNTIL - BEGIN < words > UNTIL.
+
+              The words after BEGIN are executed.  If the top of
+              the stack equals 0 then the program loops back to
+              BEGIN.
+
+BEGIN/WHILE/REPEAT - BEGIN < condition > WHILE < words > REPEAT.
+
+               As long as < condition > is <> 0 then the words
+               between WHILE and REPEAT will be executed.
+
+FOR/NEXT - n FOR < words > NEXT.
+              The words between FOR and NEXT will be repeated n
+              times.
+
+LEAVE - Forces an early end to FOR/NEXT loop.
+
+
+REFERENCES
+==========
+
+MOTOROLA LITERATURE DISTRIBUTION
+P.O.BOX 20912
+PHOENIX, ARIZONA 85036
+
+MOTOROLA FREEWARE BBS-1-512-891-3733
+
+LDG ELECTRONICS
+1445 PARREN RD.
+ST. LENARD, MD.  20685
+
+DIGIKEY
+1-800-344-4539
+call for a catalog
+
+To order the ADAPT11:
+TECHNOLOGICAL ARTS
+1044 BAYVIEW AVE.
+BOX 1704
+TORONTO, ON. CANADA
+M4G 3C2
+
+MONDO-TRONICS
+524 SAN ANSELMO AVE 107-13
+SAN ANSELMO, CA. 94960
