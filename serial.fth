@@ -14,4 +14,4 @@ hex
 
 ( Polls SCSR2 until it says that there is data waiting in SCDR - then
  it gets it and puts it on the stack )
-: RECIEVE 20 SCSR2 begin dup c@ over and until drop drop SCDR c@ ;
+: RECEIVE 20 SCSR2 begin dup c@ over and until drop drop SCDR c@ ;

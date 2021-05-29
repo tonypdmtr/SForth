@@ -19,7 +19,7 @@ cvariable SDAT
         9 ( 9 bytes )
         eemove ( move 'em )
         7e c4 c! ISR c5 ! ( jmp ISR is stored in interrupt vector )
-        20 SCCR2 BIT_SET ( set interrupt on recieved data flag )
+        20 SCCR2 BIT_SET ( set interrupt on received data flag )
         ;
 : OUT SCDR C! BEGIN SCSR C@ 80 AND UNTIL ;
 ( store data from the stack in SCI transmit register, poll status register
