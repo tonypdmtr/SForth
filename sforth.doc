@@ -4,13 +4,13 @@ SFORTH INTERPRETER
 INTRODUCTION
 ============
 
-This is a brief description of SFORTH, a FORTH compiler for the HC11
+This is a brief description of SFORTH, a Forth compiler for the HC11
 microcontroller.  SFORTH is designed to be compiled on your personal computer,
 then downloaded to a serial EEPROM connected to the HC11.  In the HC11's 512
 bytes EEPROM, an interpreter executes your code.
 
-In writing SFORTH, I've tried to stick to the FORTH standard as much as
-possible, so if you're familiar with FORTH, you'll understand SFORTH.  In this
+In writing SFORTH, I've tried to stick to the Forth standard as much as
+possible, so if you're familiar with Forth, you'll understand SFORTH.  In this
 document, I will describe a working circuit, the essential elements of the
 language, the compiler, writing and downloading a program.
 
@@ -99,15 +99,15 @@ Loader monitors the serial line and echoes it to the screen.
 PROGRAMMING IN SFORTH
 =====================
 
-While writing SFORTH, I tried to comply with standard FORTH as much as possible.
-There is a major difference.  In standard FORTH, you can write your program and
-debug it as you go along.  FORTH is an interactive interpreter, you can run your
+While writing SFORTH, I tried to comply with standard Forth as much as possible.
+There is a major difference.  In standard Forth, you can write your program and
+debug it as you go along.  Forth is an interactive interpreter, you can run your
 program as soon as you write it.  SFORTH, however is compiled, you have to run
 it through the compiler before you can run it on the HC11. Other than that,
-there are only a few differences between FORTH and SFORTH.  If you can write a
-program in FORTH, you can write one in SFORTH.
+there are only a few differences between Forth and SFORTH.  If you can write a
+program in Forth, you can write one in SFORTH.
 
-As in FORTH, there are two stacks, one for data and one for return addresses.
+As in Forth, there are two stacks, one for data and one for return addresses.
 They reside in the HC11's zero page RAM.
 
 In SFORTH commands and subroutines are called WORDS.  You write programs using
