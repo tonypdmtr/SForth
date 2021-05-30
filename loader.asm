@@ -1,5 +1,6 @@
 ;*******************************************************************************
-; Disassembly of original loader.s19                             <tonyp@acm.org>
+; Based on disassembly of original loader.s19                    <tonyp@acm.org>
+; Minor refactoring and size optimizations [-13 bytes]
 ;*******************************************************************************
 
 BUS_HZ              def       2000000             ;E-clock bus speed in Hz
@@ -18,12 +19,8 @@ EEPROM              equ       $B600               ;Start of EEPROM
 
 SPIF                equ       $80                 ;SPI Interrupt Status Flag
 
-SPIE                equ       $80                 ;SPI Control Register
 SPE                 equ       $40                 ;SPI Interrupt Enable
-DWOM                equ       $20                 ;Port D Wire-Or Mode
 MSTR                equ       $10                 ;Master Mode Select
-CPOL                equ       $08                 ;Clock Polarity
-CPHA                equ       $04                 ;Clock Phase
 SPR1                equ       $02                 ;SPI Rate Select bit 1
 SPR0                equ       $01                 ;SPI Rate Select bit 0
 
@@ -35,18 +32,19 @@ EE25016_SS          equ       $20                 ;EEPROM chip select
                     #RAM      $0000
 ;*******************************************************************************
 
-addr_msb            rmb       1
-addr_lsb            rmb       1
+addr                rmb       2
+addr_msb            equ       addr,1
+addr_lsb            equ       addr+1,1
 value               rmb       1
 
 ;*******************************************************************************
                     #ROM      $0000
 ;*******************************************************************************
-                    #Hint     Original's ASM11 CRC: $1D9E
+                    #Hint     Original's ASM11 CRC: $1D9E (141 bytes, RAM: 3)
 
 Start               proc
-                    ldd       #0
-                    std       addr_msb
+                    clrd
+                    std       addr
                     ldx       #REGS
                     lda       #SPE|MSTR|SPR1|SPR0 ; E-clock divide by 32 (62.5KHz @2MHz)
                     sta       [SPCR,x
@@ -57,48 +55,30 @@ Start               proc
 Loop@@              ldd       #DELAY@@            ; 33.29 msec (as in original code)
                               #Cycles
 _1@@                brset     [SCSR,x,RDRF,_2@@
-                    xgdx
-                    dex
-                    xgdx
+                    decd
                     bne       _1@@
 DELAY@@             equ       3329*BUS_KHZ/100/:cycles
           ;--------------------------------------
-                    bra       _3@@
+                    jmp       EEPROM
 
 _2@@                lda       [SCDR,x
                     sta       value
-                    jsr       EE25016_Act1
-                    jsr       EE25016_Act2
+                    bsr       EE25016_Act
                     lda       value
                     sta       [SCDR,x
-                    ldy       addr_msb
-                    iny
-                    sty       addr_msb
+                    pshx
+                    ldx       addr
+                    inx
+                    stx       addr
+                    pulx
                     bra       Loop@@
 
-_3@@                jmp       EEPROM
-
 ;*******************************************************************************
 
-EE25016_Act2        proc
-                    bsr       EE25016_Enable
-                    lda       #3
-                    bsr       EE25016_WriteRead
-                    lda       addr_msb
-                    bsr       EE25016_WriteRead
-                    lda       addr_lsb
-                    bsr       EE25016_WriteRead
-                    bsr       EE25016_WriteRead
-                    sta       value
-                    bsr       EE25016_Disable
-                    rts
-
-;*******************************************************************************
-
-EE25016_Act1        proc
+EE25016_Act         proc
                     bsr       EE25016_Enable
                     lda       #6
-                    jsr       EE25016_WriteRead
+                    bsr       EE25016_WriteRead
                     bsr       EE25016_Disable
                     bsr       EE25016_Enable
                     lda       #2
@@ -119,14 +99,21 @@ Loop@@              bsr       EE25016_Enable
                     anda      #%1
                     bne       Loop@@
           ;--------------------------------------
-                    rts
+                    bsr       EE25016_Enable
+                    lda       #3
+                    bsr       EE25016_WriteRead
+                    lda       addr_msb
+                    bsr       EE25016_WriteRead
+                    lda       addr_lsb
+                    bsr       EE25016_WriteRead
+                    bsr       EE25016_WriteRead
+                    sta       value
+;                   bra       EE25016_Disable
 
 ;*******************************************************************************
 
-EE25016_WriteRead   proc
-                    sta       [SPDR,x
-                    brclr     [SPSR,x,SPIF,*
-                    lda       [SPDR,x
+EE25016_Disable     proc
+                    bset      [PORTD,x,EE25016_SS
                     rts
 
 ;*******************************************************************************
@@ -137,6 +124,8 @@ EE25016_Enable      proc
 
 ;*******************************************************************************
 
-EE25016_Disable     proc
-                    bset      [PORTD,x,EE25016_SS
+EE25016_WriteRead   proc
+                    sta       [SPDR,x
+                    brclr     [SPSR,x,SPIF,*
+                    lda       [SPDR,x
                     rts
