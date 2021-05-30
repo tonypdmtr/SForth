@@ -1,112 +1,142 @@
 ;*******************************************************************************
-; Disassembly of original loader.s19
+; Disassembly of original loader.s19                             <tonyp@acm.org>
 ;*******************************************************************************
+
+BUS_HZ              def       2000000             ;E-clock bus speed in Hz
+BUS_KHZ             equ       BUS_HZ/1000         ;E-clock bus speed in KHz
 
 REGS                equ       $1000
 PORTD               equ       REGS+$08,1          ;Port D Data
+DDRD                equ       REGS+$09,1          ;Data Direction Register D
 SPDR                equ       REGS+$2A,1          ;SPI Data Register
+SPCR                equ       REGS+$28,1          ;SPI Control Register
 SPSR                equ       REGS+$29,1          ;SPI Status Register
 SCSR                equ       REGS+$2E,1          ;SCI Status Register
+SCDR                equ       REGS+$2F,1          ;SCI Data Register
+
+EEPROM              equ       $B600               ;Start of EEPROM
+
+SPIF                equ       $80                 ;SPI Interrupt Status Flag
+
+SPIE                equ       $80                 ;SPI Control Register
+SPE                 equ       $40                 ;SPI Interrupt Enable
+DWOM                equ       $20                 ;Port D Wire-Or Mode
+MSTR                equ       $10                 ;Master Mode Select
+CPOL                equ       $08                 ;Clock Polarity
+CPHA                equ       $04                 ;Clock Phase
+SPR1                equ       $02                 ;SPI Rate Select bit 1
+SPR0                equ       $01                 ;SPI Rate Select bit 0
+
+RDRF                equ       $20                 ;Receive Data Register Full Flag
+
+EE25016_SS          equ       $20                 ;EEPROM chip select
 
 ;*******************************************************************************
                     #RAM      $0000
 ;*******************************************************************************
 
-v1                  rmb       2
-v2                  rmb       1
+addr_msb            rmb       1
+addr_lsb            rmb       1
+value               rmb       1
 
 ;*******************************************************************************
                     #ROM      $0000
 ;*******************************************************************************
-                    #Hint     ASM11 CRC: $1D9E
+                    #Hint     Original's ASM11 CRC: $1D9E
 
 Start               proc
-                    ldd       #$0000              ; 0000 CC0000
-                    std       v1                  ; 0003 DD00
-                    ldx       #$1000              ; 0005 CE1000 [1000]
-                    lda       #$53                ; 0008 8653 [0053]
-                    sta       $28,x               ; 000A A728 [1028]
-                    lda       9,x                 ; 000C A609 [1009]
-                    ora       #$3F                ; 000E 8A3F [003F]
-                    sta       9,x                 ; 0010 A709 [1009]
-Loop@@              ldd       #$0DB0              ; 0012 CC0DB0 [0DB0]
-_1@@                brset     [SCSR,x,$20,_2@@    ; 0015 1E2E2007 [0020]
-                    xgdx                          ; 0019 8F [1000]
-                    dex                           ; 001A 09 [1000]
-                    xgdx                          ; 001B 8F [1000]
-                    bne       _1@@                ; 001C 26F7 [0015]
-                    bra       _3@@                ; 001E 2018 [0038]
+                    ldd       #0
+                    std       addr_msb
+                    ldx       #REGS
+                    lda       #SPE|MSTR|SPR1|SPR0 ; E-clock divide by 32 (62.5KHz @2MHz)
+                    sta       [SPCR,x
+                    lda       [DDRD,x
+                    ora       #%00111111
+                    sta       [DDRD,x
+          ;-------------------------------------- ; wait for ready with timeout
+Loop@@              ldd       #DELAY@@            ; 33.29 msec (as in original code)
+                              #Cycles
+_1@@                brset     [SCSR,x,RDRF,_2@@
+                    xgdx
+                    dex
+                    xgdx
+                    bne       _1@@
+DELAY@@             equ       3329*BUS_KHZ/100/:cycles
+          ;--------------------------------------
+                    bra       _3@@
 
-_2@@                lda       $2F,x               ; 0020 A62F [102F]
-                    sta       v2                  ; 0022 9702 [0002]
-                    jsr       L6                  ; 0024 BD0050 [0050]
-                    jsr       L5                  ; 0027 BD003B [003B]
-                    lda       v2                  ; 002A 9602 [0002]
-                    sta       $2F,x               ; 002C A72F [102F]
-                    ldy       v1                  ; 002E 18DE00
-                    iny                           ; 0031 1808 [E000]
-                    sty       v1                  ; 0033 18DF00
-                    bra       Loop@@              ; 0036 20DA [0012]
+_2@@                lda       [SCDR,x
+                    sta       value
+                    jsr       EE25016_Act1
+                    jsr       EE25016_Act2
+                    lda       value
+                    sta       [SCDR,x
+                    ldy       addr_msb
+                    iny
+                    sty       addr_msb
+                    bra       Loop@@
 
-_3@@                jmp       $B600               ; 0038 7EB600 [B600]
-
-;*******************************************************************************
-
-L5                  proc
-                    bsr       L10                 ; 003B 8D48 [0085]
-                    lda       #$03                ; 003D 8603 [0003]
-                    bsr       L8                  ; 003F 8D3B [007C]
-                    lda       v1                  ; 0041 9600
-                    bsr       L8                  ; 0043 8D37 [007C]
-                    lda       v1+1                ; 0045 9601 [0001]
-                    bsr       L8                  ; 0047 8D33 [007C]
-                    bsr       L8                  ; 0049 8D31 [007C]
-                    sta       v2                  ; 004B 9702 [0002]
-                    bsr       L11                 ; 004D 8D3A [0089]
-                    rts                           ; 004F 39 [00A1]
+_3@@                jmp       EEPROM
 
 ;*******************************************************************************
 
-L6                  proc
-                    bsr       L10                 ; 0050 8D33 [0085]
-                    lda       #6                  ; 0052 8606 [0006]
-                    jsr       L8                  ; 0054 BD007C [007C]
-                    bsr       L11                 ; 0057 8D30 [0089]
-                    bsr       L10                 ; 0059 8D2A [0085]
-                    lda       #2                  ; 005B 8602 [0002]
-                    bsr       L8                  ; 005D 8D1D [007C]
-                    lda       v1                  ; 005F 9600
-                    bsr       L8                  ; 0061 8D19 [007C]
-                    lda       v1+1                ; 0063 9601 [0001]
-                    bsr       L8                  ; 0065 8D15 [007C]
-                    lda       v2                  ; 0067 9602 [0002]
-                    bsr       L8                  ; 0069 8D11 [007C]
-                    bsr       L11                 ; 006B 8D1C [0089]
-Loop@@              bsr       L10                 ; 006D 8D16 [0085]
-                    lda       #5                  ; 006F 8605 [0005]
-                    bsr       L8                  ; 0071 8D09 [007C]
-                    bsr       L8                  ; 0073 8D07 [007C]
-                    bsr       L11                 ; 0075 8D12 [0089]
-                    anda      #$01                ; 0077 8401 [0001]
-                    bne       Loop@@              ; 0079 26F2 [006D]
-                    rts                           ; 007B 39 [00A1]
+EE25016_Act2        proc
+                    bsr       EE25016_Enable
+                    lda       #3
+                    bsr       EE25016_WriteRead
+                    lda       addr_msb
+                    bsr       EE25016_WriteRead
+                    lda       addr_lsb
+                    bsr       EE25016_WriteRead
+                    bsr       EE25016_WriteRead
+                    sta       value
+                    bsr       EE25016_Disable
+                    rts
 
 ;*******************************************************************************
 
-L8                  proc
-                    sta       [SPDR,x             ; 007C A72A [102A]
-                    brclr     [SPSR,x,$80,*       ; 007E 1F2980FC [007E]
-                    lda       [SPDR,x             ; 0082 A62A [102A]
-                    rts                           ; 0084 39 [00A1]
+EE25016_Act1        proc
+                    bsr       EE25016_Enable
+                    lda       #6
+                    jsr       EE25016_WriteRead
+                    bsr       EE25016_Disable
+                    bsr       EE25016_Enable
+                    lda       #2
+                    bsr       EE25016_WriteRead
+                    lda       addr_msb
+                    bsr       EE25016_WriteRead
+                    lda       addr_lsb
+                    bsr       EE25016_WriteRead
+                    lda       value
+                    bsr       EE25016_WriteRead
+                    bsr       EE25016_Disable
+          ;--------------------------------------
+Loop@@              bsr       EE25016_Enable
+                    lda       #5
+                    bsr       EE25016_WriteRead
+                    bsr       EE25016_WriteRead
+                    bsr       EE25016_Disable
+                    anda      #%1
+                    bne       Loop@@
+          ;--------------------------------------
+                    rts
 
 ;*******************************************************************************
 
-L10                 proc
-                    bclr      [PORTD,x,$20        ; 0085 1D0820 [0020]
-                    rts                           ; 0088 39 [00A1]
+EE25016_WriteRead   proc
+                    sta       [SPDR,x
+                    brclr     [SPSR,x,SPIF,*
+                    lda       [SPDR,x
+                    rts
 
 ;*******************************************************************************
 
-L11                 proc
-                    bset      [PORTD,x,$20        ; 0089 1C0820 [0020]
-                    rts                           ; 008C 39 [00A1]
+EE25016_Enable      proc
+                    bclr      [PORTD,x,EE25016_SS
+                    rts
+
+;*******************************************************************************
+
+EE25016_Disable     proc
+                    bset      [PORTD,x,EE25016_SS
+                    rts
